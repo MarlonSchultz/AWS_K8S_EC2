@@ -1,0 +1,28 @@
+Parameters:
+  NetworkStackNameParameter:
+    Type: String
+
+Resources:
+  SecurityGroupJumpHostSSH:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Gives all ips access to jumphost
+      GroupName: SecurityGroupJumpHost
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${NetworkStackNameParameter}-VPCID"
+
+  ingress22FromAnywhere:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroupJumpHostSSH
+      IpProtocol: tcp
+      FromPort: '22'
+      ToPort: '22'
+      CidrIp: 0.0.0.0/0
+
+Outputs:
+  SecurityGroupJumpHostSSH:
+    Value: !Ref SecurityGroupJumpHostSSH
+    Export:
+      Name: !Sub "${AWS::StackName}-sg-jumphost"

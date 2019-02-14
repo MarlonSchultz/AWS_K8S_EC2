@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: 1 VPC in 2 AZ with 2 Subnets and 2 NATs
+
+Parameters:
+  CidrBlock:
+    Type: String
+    Default: 10.0.0.0/16
+  DefaultRegion:
+    Type: String
+    Default: "eu-central-1"
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:
+        Ref: CidrBlock
+
+  ElasticIpOne:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: VPC
+  ElasticIpTwo:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: VPC
+
+  InternetGateWay:
+    Type: AWS::EC2::InternetGateway
+  InternetGateWayVPCConnection:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateWay
+      VpcId: !Ref VPC
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: BelongsToStack
+          Value: !Ref AWS::StackName
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateWay
+
+  PublicSubnetOneRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetOne
+
+  PrivateRouteTableSubnetOne:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PrivateSubnetOneRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableSubnetOne
+      SubnetId: !Ref PrivateSubnetOne
+
+  PrivateSubnetOneNatRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATInPublicSubnetOne
+      RouteTableId: !Ref PrivateRouteTableSubnetOne
+
+  PublicSubnetTwoRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetTwo
+
+  PrivateRouteTableSubnetTwo:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: BelongsToStack
+          Value: !Ref AWS::StackName
+
+  PrivateSubnetTwoRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableSubnetTwo
+      SubnetId: !Ref PrivateSubnetTwo
+
+  PrivateSubnetTwoNatRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATInPublicSubnetTwo
+      RouteTableId: !Ref PrivateRouteTableSubnetTwo
+
+  NATInPublicSubnetOne:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIpOne.AllocationId
+      SubnetId: !Ref PublicSubnetOne
+
+  NATInPublicSubnetTwo:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIpTwo.AllocationId
+      SubnetId: !Ref PublicSubnetTwo
+
+  PrivateSubnetOne:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select
+        - '0'
+        - Fn::GetAZs: !Ref DefaultRegion
+      Tags:
+        - Key: BelongsToStack
+          Value: !Ref AWS::StackName
+  PublicSubnetOne:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.11.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select
+        - '0'
+        - Fn::GetAZs: !Ref DefaultRegion
+      Tags:
+        - Key: BelongsToStack
+          Value: !Ref AWS::StackName
+
+  PrivateSubnetTwo:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select
+        - '1'
+        - Fn::GetAZs: !Ref DefaultRegion
+      Tags:
+        - Key: BelongsToStack
+          Value: !Ref AWS::StackName
+
+  PublicSubnetTwo:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.12.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select
+        - '1'
+        - Fn::GetAZs: !Ref DefaultRegion
+      Tags:
+        - Key: BelongsToStack
+          Value: !Ref AWS::StackName
+
+
+Outputs:
+  VpcIdOutput:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCID"
+  ElasticIpOneAllocationId:
+    Value: !GetAtt ElasticIpOne.AllocationId
+    Export:
+      Name: !Sub "${AWS::StackName}-EIP1"
+  ElasticIpTwoAllocationId:
+    Value: !GetAtt ElasticIpTwo.AllocationId
+    Export:
+      Name: !Sub "${AWS::StackName}-EIP2"
+  InternetGateWay:
+    Value: !Ref InternetGateWay
+    Export:
+      Name: !Sub "${AWS::StackName}-IGW"
+  PublicSubnetOne:
+    Value: !Ref PublicSubnetOne
+    Export:
+      Name: !Sub "${AWS::StackName}-PubSubNet1"
+  PublicSubnetTwo:
+    Value: !Ref PublicSubnetTwo
+    Export:
+      Name: !Sub "${AWS::StackName}-PubSubNet2"
+  PrivateSubnetOne:
+    Value: !Ref PrivateSubnetOne
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivSubNet1"
+  PrivateSubnetTwo:
+    Value: !Ref PrivateSubnetTwo
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivSubNet2"

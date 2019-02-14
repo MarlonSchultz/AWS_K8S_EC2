@@ -1,0 +1,22 @@
+Parameters:
+  PublicSubnetOne:
+    Type: String
+  SecurityGroupJumpHostSSH:
+    Type: String
+  JumpHostKey:
+    Type: String
+
+Resources:
+  JumpHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-5055cd3f
+      SubnetId:
+        Fn::ImportValue: !Ref PublicSubnetOne
+      InstanceType: t3.nano
+      KeyName: !Ref JumpHostKey
+      SecurityGroupIds:
+        - Fn::ImportValue: !Ref SecurityGroupJumpHostSSH
+      Tags:
+        - Key: Name
+          Value: JumpHost
