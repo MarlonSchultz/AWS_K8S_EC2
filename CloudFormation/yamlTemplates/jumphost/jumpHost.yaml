@@ -1,3 +1,5 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: JumpHost in public subnet 1
 Parameters:
   PublicSubnetOne:
     Type: String

@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: EC2 Host Autoscaling
+Parameters:
+  PrivateSubnetOne:
+    Type: String
+  PrivateSubnetTwo:
+    Type: String
+  SSHKeyName:
+    Type: String
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  NetworkStackNameParameter:
+    Type: String
+
+Resources:
+  AutoScaleLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      LaunchConfigurationName: 'K8S-Nodes'
+      AssociatePublicIpAddress: false
+      ImageId:  'ami-0bdf93799014acdc4'
+      InstanceType: t3.large
+      KeyName: !Ref SSHKeyName
+      SecurityGroups:
+        - !Ref SecurityGroupSSH
+      UserData:
+        Fn::Base64:
+              '#!/bin/bash
+              cloud-init-per once apt update
+              cloud-init-per once apt upgrade
+              cloud-init-per once apt-get update && apt-get install -y apt-transport-https curl
+              cloud-init-per once curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+              cloud-init-per once cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+              cloud-init-per once deb https://apt.kubernetes.io/ kubernetes-xenial main
+              cloud-init-per once EOF
+              cloud-init-per once apt-get update
+              cloud-init-per once apt-get install -y kubelet kubeadm kubectl
+              cloud-init-per once apt-mark hold kubelet kubeadm kubectl'
+
+  AutoscaleEC2Instances:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName: !Ref AutoScaleLaunchConfig
+      MinSize: 2
+      MaxSize: 10
+      VPCZoneIdentifier:
+        - Fn::ImportValue:
+            !Ref PrivateSubnetOne
+        - Fn::ImportValue:
+            !Ref PrivateSubnetTwo
+      Tags:
+        - Key: Name
+          PropagateAtLaunch: true
+          Value: !Join
+            - ''
+            - - 'EC2-'
+              - !Ref AWS::StackName
+
+  SecurityGroupSSH:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SSH from local IPs
+      GroupName: SSH
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${NetworkStackNameParameter}-VPCID"
+
+  ingress22FromAnywhere:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroupSSH
+      IpProtocol: tcp
+      FromPort: '22'
+      ToPort: '22'
+      CidrIp: 0.0.0.0/0
